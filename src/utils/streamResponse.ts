@@ -1,7 +1,7 @@
 import { openai } from "../clients/openai.ts"
-import type { History } from "../types.ts"
+import type { Message } from "../types.ts"
 
-export async function streamResponse(history: History[], system = "Voce e um assistente util e prestativo") {
+export async function streamResponse(history: Message[], system = "Voce e um assistente util e prestativo") {
   let fullResponse = ""
 
   const stream = await openai.chat.completions.create({

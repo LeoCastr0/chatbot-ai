@@ -1,4 +1,24 @@
+import * as crypto from "node:crypto"
+import { ContextWindow } from "./contextWindow.ts"
 import { generateWithCritique } from './utils/generateWithCritique.ts'
+import { summarizeHistory } from "./utils/summarizeHistory.ts"
+import { MessageRepository } from "./messageRepository.ts"
+
+const windowId = process.argv[2] || crypto.randomUUID();
+const contextWindow = new ContextWindow();
+const messageRepository = new MessageRepository();
+
+console.log(`-------------------------------- Sessao iniciada com identificador: ${windowId} --------------------------------`);
+
+const initialMessages = messageRepository.load(windowId);
+
+if (initialMessages.length > 0) {
+  console.log(`-------------------------------- Restaurando historico de mensagens da sessao: ${windowId} --------------------------------`);
+  console.log(`-------------------------------- ${initialMessages.length} messages restauradas --------------------------------`);
+  initialMessages.forEach(message => {
+    contextWindow.restore(message.role, message.content);
+  });
+}
 
 const PERSONAS = {
   juridico: "Voce e um assistente especializado em direitos tributarios brasileiro. Responda sempre em linguagem acessivel para nao advogados ou contadores. Nunca de conselhos juridicos ou fiscais - apenas explique conceitos e teorias.",
@@ -53,11 +73,31 @@ async function chatWithPersona(
   persona: keyof typeof PERSONAS,
   question: string
 ) {
-  const systemPrompt = PERSONAS[persona]
-  const response = await generateWithCritique(systemPrompt, question);
+  const systemPrompt = PERSONAS[persona];
+  const userMessage = contextWindow.addAssistantMessage(question);
 
-  console.log(`\n\n[${persona.toUpperCase()}] Resposta:\n`, response)
+  messageRepository.save(windowId, userMessage);
+
+  const response = await generateWithCritique(systemPrompt, contextWindow);
+
+  const assistantMessage = contextWindow.addAssistantMessage(response);
+  messageRepository.save(windowId, assistantMessage);
+
+  console.log(`\n\n[${persona.toUpperCase()}] Resposta:\n`, response);
 }
 
-await chatWithPersona("juridico", contractAnalysisPrompt({ contractText, clientType: "pf", levelOfDetail: "high" }))
-console.log("============================================")
+await chatWithPersona("juridico", contractAnalysisPrompt({ contractText, clientType: "pj", levelOfDetail: "low" }));
+
+await chatWithPersona("juridico", "Quantas clausulas o meu contrato possui?");
+
+await chatWithPersona("juridico", "Existe alguma multa no contrato?");
+
+await chatWithPersona("juridico", "O contrato pode ser encerrado a qualquer momento?");
+
+await chatWithPersona("juridico", "Qual foi minha primeira pergunta?");
+
+console.log("-------------------------------- Resumo do historico de mensagens --------------------------------");
+console.log(await summarizeHistory(contextWindow.getMessages()));
+
+console.log(`-------------------------------- Para resumir essa sessao, utilize o identificador: ${windowId} --------------------------------`);
+
