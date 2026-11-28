@@ -8,6 +8,11 @@ export type ValidationResult = {
   errors: string[];
 }
 
+export type RagExample = {
+  q: string;
+  a: string;
+}
+
 export interface IRepository<T> {
   save(session: string, data: T): void;
   load(session: string): T[];
